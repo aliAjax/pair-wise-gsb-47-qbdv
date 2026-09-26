@@ -12,6 +12,9 @@ from .domain import Actor, DomainError, PermissionDenied, ValidationError
 RECORD_RE = re.compile(r"^/api/records/(\d+)$")
 ACTION_RE = re.compile(r"^/api/records/(\d+)/actions/([a-z_]+)$")
 AUDIT_RE = re.compile(r"^/api/records/(\d+)/audit$")
+RECORD_HANDOVERS_RE = re.compile(r"^/api/records/(\d+)/handovers$")
+HANDOVER_RE = re.compile(r"^/api/handovers/(\d+)$")
+HANDOVER_ITEM_RE = re.compile(r"^/api/handover-items/(\d+)/(sign|return)$")
 
 
 def make_handler(service: Any, static_dir: Path):
@@ -73,12 +76,38 @@ def make_handler(service: Any, static_dir: Path):
                     return
                 if parsed.path == "/api/records":
                     query = parse_qs(parsed.query)
-                    records = service.list_records(self._actor(), state=query.get("state", [None])[0], limit=int(query.get("limit", ["100"])[0]))
+                    records = service.list_records(
+                        self._actor(),
+                        state=query.get("state", [None])[0],
+                        limit=int(query.get("limit", ["100"])[0]),
+                        unfinished_only=query.get("unfinished", [""])[0] in ("1", "true", "yes"),
+                        owner=query.get("owner", [None])[0],
+                    )
                     self._send(200, {"items": records})
+                    return
+                if parsed.path == "/api/handover-desk":
+                    query = parse_qs(parsed.query)
+                    self._send(200, service.handover_desk(self._actor(), status_filter=query.get("status", [None])[0]))
+                    return
+                if parsed.path == "/api/handovers":
+                    query = parse_qs(parsed.query)
+                    direction = query.get("direction", ["incoming"])[0]
+                    batches = service.list_handovers(
+                        self._actor(), direction=direction, status_filter=query.get("status", [None])[0]
+                    )
+                    self._send(200, {"items": batches})
+                    return
+                match = HANDOVER_RE.match(parsed.path)
+                if match:
+                    self._send(200, service.get_handover(self._actor(), int(match.group(1))))
                     return
                 match = RECORD_RE.match(parsed.path)
                 if match:
                     self._send(200, service.get_record(self._actor(), int(match.group(1))))
+                    return
+                match = RECORD_HANDOVERS_RE.match(parsed.path)
+                if match:
+                    self._send(200, {"items": service.record_handovers(self._actor(), int(match.group(1)))})
                     return
                 match = AUDIT_RE.match(parsed.path)
                 if match:
@@ -98,6 +127,21 @@ def make_handler(service: Any, static_dir: Path):
                 if parsed.path == "/api/records":
                     record = service.create(self._actor(), body.get("reference", ""), body.get("data", {}))
                     self._send(201, record)
+                    return
+                if parsed.path == "/api/handovers":
+                    handover = service.initiate_handover(self._actor(), body)
+                    self._send(201, handover)
+                    return
+                match = HANDOVER_ITEM_RE.match(parsed.path)
+                if match:
+                    decision = "signed" if match.group(2) == "sign" else "returned"
+                    result = service.decide_handover(
+                        self._actor(),
+                        int(match.group(1)),
+                        decision,
+                        str(body.get("note", "") or ""),
+                    )
+                    self._send(200, result)
                     return
                 match = ACTION_RE.match(parsed.path)
                 if match:

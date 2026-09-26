@@ -5,6 +5,7 @@ from .domain import Actor, Conflict, ValidationError, boolean, choice, integer, 
 
 
 INITIAL_STATE = "reported"
+TERMINAL_STATES = {"closed", "cancelled"}
 CREATE_ROLES = {'incident_commander', 'transport_coordinator'}
 ACTION_ROLES = {'allocate': {'incident_commander', 'transport_coordinator'}, 'accept': {'hospital_liaison'}, 'transfer': {'hospital_liaison', 'transport_coordinator'}, 'complete': {'hospital_liaison'}, 'cancel': {'incident_commander'}}
 TRANSITIONS = {'allocate': {'reported': 'allocated'}, 'accept': {'allocated': 'accepted'}, 'transfer': {'accepted': 'transferred'}, 'complete': {'transferred': 'closed'}, 'cancel': {'reported': 'cancelled', 'allocated': 'cancelled', 'accepted': 'cancelled'}}
@@ -12,6 +13,12 @@ TRANSITIONS = {'allocate': {'reported': 'allocated'}, 'accept': {'allocated': 'a
 
 class DomainRules:
     INITIAL_STATE = INITIAL_STATE
+    TERMINAL_STATES = TERMINAL_STATES
+
+    HANDOVER_STATUSES = ("pending", "signed", "returned", "invalidated")
+
+    def is_open(self, state: str) -> bool:
+        return state not in TERMINAL_STATES
 
     def known_role(self, role: str) -> bool:
         all_roles = set(CREATE_ROLES)
