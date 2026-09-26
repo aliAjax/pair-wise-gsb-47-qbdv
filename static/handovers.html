@@ -1,0 +1,334 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>指挥交接台 · 应急扩容协调</title>
+  <style>
+    :root { --line:#d8dee6; --bg:#f4f6f8; --ink:#17212b; --muted:#5b6b7b; }
+    * { box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; color: var(--ink); background:var(--bg); }
+    main { max-width: 1180px; margin: auto; padding: 1.25rem 1.5rem 3rem; }
+    h1 { font-size: 1.35rem; margin: .25rem 0; }
+    h2 { font-size: 1.02rem; margin: 0 0 .6rem; display:flex; align-items:center; gap:.5rem; }
+    a { color:#1a5fb4; }
+    .identity { background:#fff; border:1px solid var(--line); border-radius:10px; padding:.7rem .9rem; display:flex; flex-wrap:wrap; gap:.6rem; align-items:flex-end; margin:.8rem 0 1rem; }
+    .identity label { font-size:.78rem; color:var(--muted); display:flex; flex-direction:column; gap:.2rem; }
+    input, select, textarea { font: inherit; padding:.4rem .5rem; border:1px solid var(--line); border-radius:6px; background:#fff; }
+    textarea { width:100%; resize:vertical; min-height:2.4rem; }
+    button { padding:.45rem .8rem; cursor:pointer; border:1px solid #2a6cb0; background:#2a6cb0; color:#fff; border-radius:6px; font-size:.85rem; }
+    button.ghost { background:#fff; color:#2a6cb0; }
+    button.danger { border-color:#c0392b; background:#c0392b; }
+    button.small { padding:.25rem .55rem; font-size:.78rem; }
+    button:disabled { opacity:.45; cursor:default; }
+    .grid { display:grid; grid-template-columns: repeat(4, 1fr); gap:.9rem; align-items:start; }
+    .panel { background:#fff; border:1px solid var(--line); border-radius:10px; padding:.8rem; }
+    .panel.initiate { margin-bottom:1rem; }
+    .count { font-size:.75rem; font-weight:400; color:var(--muted); }
+    .card { border:1px solid var(--line); border-radius:8px; padding:.6rem .7rem; margin-bottom:.6rem; background:#fdfdfe; font-size:.84rem; }
+    .card .ref { font-weight:600; }
+    .card .meta { color:var(--muted); font-size:.76rem; margin:.15rem 0 .35rem; }
+    .card .outcome { background:#eef4fb; border-left:3px solid #2a6cb0; padding:.35rem .5rem; border-radius:0 6px 6px 0; margin:.4rem 0; white-space:pre-wrap; }
+    .card .reason { background:#fdf0ee; border-left:3px solid #c0392b; padding:.3rem .5rem; border-radius:0 6px 6px 0; margin:.4rem 0; color:#7d241a; font-size:.8rem; white-space:pre-wrap; }
+    .card .voidmsg { color:#9a6a00; font-size:.78rem; margin:.3rem 0; }
+    .tag { display:inline-block; font-size:.7rem; padding:.08rem .45rem; border-radius:999px; border:1px solid var(--line); color:var(--muted); }
+    .tag.pending { background:#fff7e0; border-color:#e0b94d; color:#8a6100; }
+    .tag.signed { background:#e6f6ec; border-color:#49a36b; color:#1d6b3c; }
+    .tag.returned { background:#fdeceb; border-color:#d97b72; color:#a03327; }
+    .tag.void { background:#eceff3; border-color:#aab6c2; color:#586775; }
+    .tag.state { background:#eef1f5; }
+    .actions { display:flex; gap:.4rem; margin-top:.5rem; flex-wrap:wrap; }
+    table { width:100%; border-collapse:collapse; font-size:.83rem; background:#fff; }
+    th, td { border-bottom:1px solid var(--line); padding:.45rem .5rem; text-align:left; }
+    th { color:var(--muted); font-weight:600; font-size:.76rem; }
+    .record-pick { display:flex; gap:.5rem; align-items:flex-start; padding:.45rem; border-bottom:1px solid var(--line); }
+    .record-pick textarea { margin-top:.2rem; }
+    .record-pick .info { flex:0 0 240px; font-size:.82rem; }
+    .to-row { display:flex; gap:.6rem; align-items:center; margin:.6rem 0; }
+    .to-row input { min-width:220px; }
+    .hidden { display:none; }
+    #msg { position:fixed; right:1.2rem; bottom:1.2rem; max-width:360px; }
+    #msg .toast { border-radius:8px; padding:.6rem .9rem; margin-top:.5rem; color:#fff; font-size:.85rem; box-shadow:0 4px 14px rgba(0,0,0,.18); }
+    #msg .ok { background:#1d6b3c; } #msg .err { background:#a03327; }
+    .muted { color:var(--muted); font-size:.8rem; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>指挥交接台 <span class="muted">群体伤亡医院应急扩容协调</span></h1>
+  <div class="muted">交班人选定未结束记录并写明下一班要看到的结果；接班负责人逐项签收或退回。交接期间记录有新动作，待签收项自动作废，需重新发起，原归属不变。 · <a href="/">返回记录台</a></div>
+
+  <section class="identity">
+    <label>当前身份 X-User-Id<input id="uid" placeholder="如 commander-a"></label>
+    <label>角色 X-Role
+      <select id="role">
+        <option value="incident_commander">incident_commander 现场指挥</option>
+        <option value="transport_coordinator">transport_coordinator 转运协调</option>
+        <option value="hospital_liaison">hospital_liaison 医院联络</option>
+        <option value="admin">admin 管理员</option>
+      </select>
+    </label>
+    <label>X-Org<input id="org" placeholder="可选"></label>
+    <button id="applyIdentity">切换身份并刷新</button>
+    <button class="ghost" id="refresh">刷新</button>
+  </section>
+
+  <section class="panel initiate">
+    <h2>① 发起交接（交班人）</h2>
+    <div class="to-row">
+      接班人 X-User-Id：<input id="toUser" placeholder="接班负责人登录名">
+      <button id="loadOpen">加载我归属的未结束记录</button>
+    </div>
+    <div id="pickList"><div class="muted">点击上方按钮加载可选记录（reported / allocated / accepted / transferred）。</div></div>
+    <div class="actions"><button id="submitHandover" disabled>发起交接</button><span id="pickHint" class="muted"></span></div>
+  </section>
+
+  <section class="grid">
+    <div class="panel"><h2>② 待接收 <span class="count" id="c-pending"></span></h2><div id="col-pending"><div class="muted">暂无</div></div></div>
+    <div class="panel"><h2>③ 已签收 <span class="count" id="c-signed"></span></h2><div id="col-signed"><div class="muted">暂无</div></div></div>
+    <div class="panel"><h2>④ 退回项 <span class="count" id="c-returned"></span></h2><div id="col-returned"><div class="muted">暂无</div></div></div>
+    <div class="panel"><h2>我交出的 <span class="count" id="c-mine"></span></h2><div id="col-mine"><div class="muted">暂无</div></div></div>
+  </section>
+
+  <section class="panel" style="margin-top:1rem;">
+    <h2>我的待办（当前归属人＝我，未结束） <span class="count" id="c-todo"></span></h2>
+    <div id="todo"></div>
+  </section>
+
+  <section class="panel" style="margin-top:1rem;">
+    <h2>交接批次历史（重启服务后仍可查询）</h2>
+    <table id="batchTable">
+      <thead><tr><th>批次</th><th>交班人</th><th>接班人</th><th>状态</th><th>条目</th><th>待签收</th><th>发起时间</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div id="batchDetail" class="hidden" style="margin-top:.7rem;"></div>
+  </section>
+</main>
+<div id="msg"></div>
+
+<script>
+const OPEN_STATES = new Set(["reported","allocated","accepted","transferred"]);
+const STATE_LABEL = {reported:"已上报", allocated:"已分配", accepted:"已接收", transferred:"转运中", closed:"已关闭", cancelled:"已取消"};
+const STATUS_LABEL = {pending:"待接收", signed:"已签收", returned:"已退回", void:"已失效"};
+
+function savedIdentity() {
+  try { return JSON.parse(localStorage.getItem("handover-identity") || "null"); } catch (e) { return null; }
+}
+function identity() {
+  const saved = savedIdentity() || {};
+  return {
+    uid: (document.getElementById("uid").value || "").trim(),
+    role: document.getElementById("role").value,
+    org: (document.getElementById("org").value || "").trim()
+  };
+}
+function headers() {
+  const me = identity();
+  const h = {"X-User-Id": me.uid, "X-Role": me.role, "Content-Type":"application/json"};
+  if (me.org) h["X-Org"] = me.org;
+  return h;
+}
+function toast(text, ok) {
+  const box = document.getElementById("msg");
+  const el = document.createElement("div");
+  el.className = "toast " + (ok ? "ok" : "err");
+  el.textContent = text;
+  box.appendChild(el);
+  setTimeout(() => el.remove(), 3600);
+}
+function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c])); }
+function fmt(t) { return t ? new Date(t).toLocaleString("zh-CN", {hour12:false}) : ""; }
+
+async function api(path, options) {
+  const res = await fetch(path, Object.assign({headers: headers()}, options || {}));
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || ("HTTP " + res.status));
+  return data;
+}
+
+let openRecords = [];
+
+async function loadOpenRecords() {
+  const me = identity();
+  if (!me.uid) { toast("请先填写当前身份", false); return; }
+  const data = await api("/api/records?owner=me&limit=500");
+  openRecords = data.items.filter(r => OPEN_STATES.has(r.state));
+  renderPickList();
+}
+
+function renderPickList() {
+  const box = document.getElementById("pickList");
+  if (!openRecords.length) { box.innerHTML = '<div class="muted">没有归属你的未结束记录。</div>'; document.getElementById("submitHandover").disabled = true; return; }
+  box.innerHTML = openRecords.map(r => `
+    <div class="record-pick">
+      <input type="checkbox" class="pick" data-id="${r.id}" data-ref="${esc(r.reference)}">
+      <div class="info">
+        <div><b>#${r.id} ${esc(r.reference)}</b> <span class="tag state">${STATE_LABEL[r.state] || r.state}</span> <span class="tag">v${r.version}</span></div>
+        <div class="muted">${esc(r.payload.hospital || "")} · ${esc(r.payload.triage || "")} · ${r.payload.casualty_count || 0}人</div>
+      </div>
+      <textarea class="out" data-id="${r.id}" placeholder="下一班要看到的结果（必填），如：18:00前确认接收床位"></textarea>
+    </div>`).join("");
+  box.querySelectorAll(".pick").forEach(c => c.onchange = updatePickHint);
+  document.getElementById("submitHandover").disabled = false;
+}
+function updatePickHint() {
+  const n = document.querySelectorAll("#pickList .pick:checked").length;
+  document.getElementById("pickHint").textContent = n ? "已选 " + n + " 条" : "";
+}
+
+async function submitHandover() {
+  const toUser = document.getElementById("toUser").value.trim();
+  if (!toUser) { toast("请填写接班人", false); return; }
+  const items = [];
+  document.querySelectorAll("#pickList .pick:checked").forEach(c => {
+    const id = c.dataset.id;
+    const outcome = document.querySelector('#pickList textarea.out[data-id="'+id+'"]').value.trim();
+    if (!outcome) { throw new Error("记录#"+id+" 未填写期望结果"); }
+    items.push({record_id: Number(id), expected_outcome: outcome});
+  });
+  if (!items.length) { toast("请至少勾选一条记录", false); return; }
+  try {
+    const result = await api("/api/handovers", {method:"POST", body: JSON.stringify({to_user: toUser, items})});
+    toast("已发起交接批次 #" + result.batch.id + "，共 " + result.items.length + " 项", true);
+    await refreshAll();
+    loadOpenRecords();
+  } catch (e) { toast(e.message, false); }
+}
+
+function cardHtml(it, viewer) {
+  const mine = viewer === "from";
+  const party = mine ? "→ 接班人 " + esc(it.to_user) : "交班人 " + esc(it.from_user);
+  let body = `
+    <div class="card" data-item="${it.id}" data-outcome="${esc(it.expected_outcome)}">
+      <div><span class="ref">#${it.record_id} ${esc(it.record_reference)}</span>
+        <span class="tag ${it.status}">${STATUS_LABEL[it.status] || it.status}</span>
+        <span class="tag state">${STATE_LABEL[it.record_state] || it.record_state}</span></div>
+      <div class="meta">批次#${it.batch_id} · ${party} · 发起 ${fmt(it.created_at)}${it.decided_at ? " · 处理 " + fmt(it.decided_at) : ""}${it.decided_by ? " by " + esc(it.decided_by) : ""}</div>
+      <div class="outcome">期望结果：${esc(it.expected_outcome)}</div>`;
+  if (it.status === "returned") body += `<div class="reason">退回原因：${esc(it.return_reason)}</div>`;
+  if (it.status === "void") body += `<div class="voidmsg">⚑ ${esc(it.void_reason || "交接期间记录已更新")}，需重新发起。</div>`;
+  if (it.status === "pending" && !mine) {
+    body += `<div class="actions">
+      <button class="small" onclick="decide(${it.id},'signed')">签收</button>
+      <button class="small danger" onclick="decide(${it.id},'returned')">退回</button>
+    </div>`;
+  }
+  if ((it.status === "void" || it.status === "returned") && mine) {
+    body += `<div class="actions"><button class="small ghost" onclick="rehandover(${it.record_id}, ${it.id})">重新发起交接</button></div>`;
+  }
+  return body + "</div>";
+}
+
+async function decide(id, decision) {
+  let reason = "";
+  if (decision === "returned") {
+    reason = prompt("退回原因（交班人将看到）：", "");
+    if (reason === null) return;
+    reason = reason.trim();
+    if (!reason) { toast("退回必须填写原因", false); return; }
+  }
+  try {
+    await api("/api/handovers/" + id + "/" + (decision === "signed" ? "sign" : "return"), {method:"POST", body: JSON.stringify({reason})});
+    toast(decision === "signed" ? "已签收，记录进入你的待办" : "已退回", true);
+    refreshAll();
+  } catch (e) { toast(e.message, false); }
+}
+
+function rehandover(recordId, itemId) {
+  const card = document.querySelector('.card[data-item="' + itemId + '"]');
+  const oldOutcome = card ? card.dataset.outcome : "";
+  document.getElementById("toUser").scrollIntoView({behavior:"smooth"});
+  loadOpenRecords().then(() => {
+    const cb = document.querySelector('#pickList .pick[data-id="'+recordId+'"]');
+    if (cb) { cb.checked = true; document.querySelector('#pickList textarea.out[data-id="'+recordId+'"]').value = oldOutcome; updatePickHint(); }
+  });
+}
+
+function renderColumn(elId, list, viewer) {
+  const box = document.getElementById(elId);
+  box.innerHTML = list.length ? list.map(it => cardHtml(it, viewer)).join("") : '<div class="muted">暂无</div>';
+}
+
+async function refreshAll() {
+  const me = identity();
+  if (!me.uid) return;
+  try {
+    const [incoming, signed, returned, incomingVoid, mine, myRecords, batches] = await Promise.all([
+      api("/api/handovers?to_user=me&status=pending&limit=100"),
+      api("/api/handovers?to_user=me&status=signed&limit=20"),
+      api("/api/handovers?to_user=me&status=returned&limit=20"),
+      api("/api/handovers?to_user=me&status=void&limit=20"),
+      api("/api/handovers?from_user=me&limit=50"),
+      api("/api/records?owner=me&limit=500"),
+      api("/api/handover-batches?limit=50")
+    ]);
+    document.getElementById("c-pending").textContent = "(" + incoming.items.length + ")";
+    document.getElementById("c-signed").textContent = "(" + signed.items.length + ")";
+    document.getElementById("c-returned").textContent = "(" + returned.items.length + ")";
+    document.getElementById("c-mine").textContent = "(" + mine.items.length + ")";
+    renderColumn("col-pending", incoming.items, "to");
+    if (incomingVoid.items.length) {
+      const box = document.getElementById("col-pending");
+      box.insertAdjacentHTML("beforeend",
+        '<div class="muted" style="margin:.5rem 0 .3rem;border-top:1px dashed var(--line);padding-top:.4rem;">已失效（等待交班人重新发起）</div>'
+        + incomingVoid.items.map(it => cardHtml(it, "to")).join(""));
+    }
+    renderColumn("col-signed", signed.items, "to");
+    renderColumn("col-returned", returned.items, "to");
+    renderColumn("col-mine", mine.items, "from");
+
+    const open = myRecords.items.filter(r => OPEN_STATES.has(r.state));
+    document.getElementById("c-todo").textContent = "(" + open.length + ")";
+    document.getElementById("todo").innerHTML = open.length
+      ? '<table><thead><tr><th>#</th><th>引用</th><th>状态</th><th>版本</th><th>医院</th><th>更新时间</th></tr></thead><tbody>'
+        + open.map(r => `<tr><td>${r.id}</td><td>${esc(r.reference)}</td><td>${STATE_LABEL[r.state]||r.state}</td><td>v${r.version}</td><td>${esc(r.payload.hospital||"")}</td><td>${fmt(r.updated_at)}</td></tr>`).join("")
+        + "</tbody></table>"
+      : '<div class="muted">暂无待办</div>';
+
+    const tb = document.querySelector("#batchTable tbody");
+    tb.innerHTML = batches.items.length ? batches.items.map(b => `
+      <tr>
+        <td>#${b.id}</td><td>${esc(b.from_user)}</td><td>${esc(b.to_user)}</td>
+        <td><span class="tag ${b.status === "active" ? "pending" : "signed"}">${b.status === "active" ? "进行中" : "已完成"}</span></td>
+        <td>${b.item_count}</td><td>${b.pending_count}</td><td>${fmt(b.created_at)}</td>
+        <td><button class="small ghost" onclick="showBatch(${b.id})">查看明细</button></td>
+      </tr>`).join("")
+      : '<tr><td colspan="8" class="muted">暂无批次</td></tr>';
+  } catch (e) { toast(e.message, false); }
+}
+
+async function showBatch(id) {
+  try {
+    const b = await api("/api/handover-batches/" + id);
+    const box = document.getElementById("batchDetail");
+    box.classList.remove("hidden");
+    box.innerHTML = `<h2 style="margin-top:.4rem;">批次 #${b.id}：${esc(b.from_user)} → ${esc(b.to_user)} <span class="tag ${b.status === "active" ? "pending" : "signed"}">${b.status === "active" ? "进行中" : "已完成"}</span></h2>`
+      + b.items.map(it => cardHtml(it, it.from_user === identity().uid ? "from" : "to")).join("");
+    box.scrollIntoView({behavior:"smooth"});
+  } catch (e) { toast(e.message, false); }
+}
+
+document.getElementById("applyIdentity").onclick = () => {
+  const me = identity();
+  if (!me.uid) { toast("X-User-Id 不能为空", false); return; }
+  localStorage.setItem("handover-identity", JSON.stringify(me));
+  refreshAll();
+};
+document.getElementById("refresh").onclick = refreshAll;
+document.getElementById("loadOpen").onclick = loadOpenRecords;
+document.getElementById("submitHandover").onclick = submitHandover;
+
+(function init() {
+  const saved = savedIdentity();
+  if (saved) {
+    document.getElementById("uid").value = saved.uid || "";
+    document.getElementById("role").value = saved.role || "incident_commander";
+    document.getElementById("org").value = saved.org || "";
+  } else {
+    document.getElementById("uid").value = "commander-a";
+  }
+  refreshAll();
+})();
+</script>
+</body>
+</html>

@@ -5,6 +5,10 @@ from .domain import Actor, Conflict, ValidationError, boolean, choice, integer, 
 
 
 INITIAL_STATE = "reported"
+OPEN_STATES = {"reported", "allocated", "accepted", "transferred"}
+HANDOVER_INITIATE_ROLES = {'incident_commander', 'transport_coordinator', 'hospital_liaison'}
+HANDOVER_ITEM_STATUSES = {"pending", "signed", "returned", "void"}
+HANDOVER_DECISIONS = {"signed", "returned"}
 CREATE_ROLES = {'incident_commander', 'transport_coordinator'}
 ACTION_ROLES = {'allocate': {'incident_commander', 'transport_coordinator'}, 'accept': {'hospital_liaison'}, 'transfer': {'hospital_liaison', 'transport_coordinator'}, 'complete': {'hospital_liaison'}, 'cancel': {'incident_commander'}}
 TRANSITIONS = {'allocate': {'reported': 'allocated'}, 'accept': {'allocated': 'accepted'}, 'transfer': {'accepted': 'transferred'}, 'complete': {'transferred': 'closed'}, 'cancel': {'reported': 'cancelled', 'allocated': 'cancelled', 'accepted': 'cancelled'}}
@@ -12,11 +16,13 @@ TRANSITIONS = {'allocate': {'reported': 'allocated'}, 'accept': {'allocated': 'a
 
 class DomainRules:
     INITIAL_STATE = INITIAL_STATE
+    OPEN_STATES = OPEN_STATES
 
     def known_role(self, role: str) -> bool:
         all_roles = set(CREATE_ROLES)
         for roles in ACTION_ROLES.values():
             all_roles.update(roles)
+        all_roles.update(HANDOVER_INITIATE_ROLES)
         return role == "admin" or role in all_roles
 
     def role_can_create(self, role: str) -> bool:
